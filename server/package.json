@@ -1,22 +1,32 @@
 {
   "name": "crawl4ai-service",
   "version": "1.0.0",
-  "description": "Web crawler service for financial data",
+  "description": "Web crawler service for stock and political trading data",
   "main": "crawl-server.js",
   "scripts": {
     "start": "node crawl-server.js",
-    "dev": "nodemon crawl-server.js"
+    "dev": "nodemon crawl-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "engines": {
-    "node": ">=14.0.0"
-  },
+  "keywords": [
+    "api",
+    "crawler",
+    "stocks",
+    "finance",
+    "political",
+    "trading"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "jsdom": "^21.1.1",
-    "node-fetch": "^2.6.9"
+    "jsdom": "^22.1.0",
+    "node-fetch": "^2.6.7",
+    "nodemon": "^3.0.1"
   },
-  "devDependencies": {
-    "nodemon": "^2.0.22"
+  "engines": {
+    "node": ">=14"
   }
 }
