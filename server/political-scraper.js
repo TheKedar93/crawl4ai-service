@@ -1,3 +1,6 @@
+// Load polyfill before any other imports
+require('./fetch-polyfill').ensurePolyfilled();
+
 const fetch = require('node-fetch');
 const { JSDOM } = require('jsdom');
 
