@@ -1,104 +1,130 @@
 # Crawl4AI Service
 
-A Node.js service that provides financial data crawling capabilities for the Stock Advisor AI application, including congressional stock trading data.
+A web scraping service that collects and serves stock market data and congressional trading information. This service provides a unified API for accessing financial data from Finviz and political trading data from House Stock Watcher and Senate Stock Watcher websites.
 
 ## Features
 
-- Financial data crawling from Finviz
-- Congressional stock trading data from House Stock Watcher and Senate Stock Watcher APIs
-- REST API for easy integration with mobile and web apps
-- Customizable crawling options
-- Mock data generation for development and testing
+- **Financial Data**: Scrape stock data from Finviz including basic metrics, news, and insider trading
+- **Congressional Trading**: Extract trading data from House and Senate stock watcher websites
+- **Unified API**: Access all data through a clean RESTful API
+- **Caching**: Reduce website load and improve response times with intelligent caching
+- **TypeScript Client**: Strongly-typed client library for easy integration
 
-## Directory Structure
+## Repository Structure
 
 ```
-├── server/             # Server-side Node.js code
-│   ├── crawl-server.js # Express server implementation
-│   ├── political-api.js# Congressional trading data API
-│   ├── package.json    # Node.js dependencies
-│   └── .gitignore      # Git ignore file
-├── Dockerfile          # Docker configuration for deployment
-├── render.yaml         # Render deployment config
-├── .dockerignore       # Docker build exclusions
-├── crawl4ai-client.ts  # TypeScript client for app integration
-└── README.md           # This file
+crawl4ai-service/
+├── server/               # Backend server code
+│   ├── crawl-server.js   # Express server implementation
+│   ├── political-scraper.js # Scraper for political trading data
+│   ├── package.json      # Server dependencies
+│   └── render.yaml       # Render deployment configuration
+├── crawl4ai-client.ts    # TypeScript client library
+├── Dockerfile            # Docker configuration
+├── .dockerignore         # Docker build exclusions
+├── render.yaml           # Root deployment configuration
+└── README.md             # This documentation file
 ```
 
-## Server API Endpoints
+## API Endpoints
 
-### Web Crawling Endpoints
-- `POST /api/crawl/finviz` - Crawl Finviz for stock data
-- `POST /api/crawl` - General crawling with custom seed URLs
-- `GET /api/crawl/status` - Check the status of the crawler
+### Stock Data
+- `GET /api/stock/:ticker` - Get financial data for a specific stock ticker
 
-### Political Trading Data Endpoints
-- `GET /api/political/trades` - Get combined House and Senate trades
-- `GET /api/political/house/trades` - Get House representative trades
-- `GET /api/political/senate/trades` - Get Senate trades
-- `GET /api/political/politicians` - Get information about politicians
-
-### Utility Endpoints
-- `GET /health` - Health check endpoint
+### Political Trading Data
+- `GET /api/political/trades` - Get all congressional trading data
+- `GET /api/political/house` - Get House representatives' trading data
+- `GET /api/political/senate` - Get Senators' trading data
+- `GET /api/political/politicians` - Get profiles of all politicians
+- `GET /api/political/politician/:name/trades` - Get trades for a specific politician
+- `GET /api/political/ticker/:ticker/trades` - Get congressional trades for a specific ticker
 
 ## Data Sources
 
-- **Finviz**: Financial visualization and stock screening website
-- **[House Stock Watcher API](https://housestockwatcher.com/api)**: Provides data on House representatives' stock trading
-- **[Senate Stock Watcher API](https://senatestockwatcher.com/api)**: Provides data on Senators' stock trading
+The service scrapes data from the following sources:
+- **Finviz** (`https://finviz.com`) - For stock data and financial metrics
+- **House Stock Watcher** (`https://housestockwatcher.com`) - For House representatives' trading data
+- **Senate Stock Watcher** (`https://senatestockwatcher.com`) - For Senators' trading data
 
-## Deployment on Render
+## Deployment
 
-1. Sign up or log in to [Render](https://render.com)
-2. Create a new Web Service
-3. Connect your GitHub repository
-4. Use the following settings:
-   - Environment: Docker
-   - Docker Compose File: Leave empty, uses the Dockerfile
-   - Auto Deploy: Yes (optional)
+### Deploy on Render
 
-## Client Usage
+This service is configured for deployment on Render.com.
 
-```typescript
-import { Crawl4AIClient } from './crawl4ai-client';
+1. Fork or clone this repository
+2. Create a new Web Service on Render
+3. Connect to your fork of this repository
+4. Select "Docker" as the Environment
+5. The service will automatically build and deploy
 
-// Financial data example
-const finvizResults = await Crawl4AIClient.crawlFinviz();
+**Configuration**:
+- Build Command: `N/A` (Docker handles the build)
+- Start Command: `N/A` (Docker handles the startup)
 
-// Political trading data examples
-const allPoliticalTrades = await Crawl4AIClient.getPoliticalTrades();
-const houseTrades = await Crawl4AIClient.getHouseTrades();
-const senateTrades = await Crawl4AIClient.getSenateTrades();
-const politicians = await Crawl4AIClient.getPoliticians();
+### Local Development
 
-// Check crawler status
-const status = await Crawl4AIClient.getStatus();
-```
-
-## Local Development
-
-### Using Node directly
+To run the service locally:
 
 ```bash
-# Navigate to server directory
-cd server
+# Clone the repository
+git clone https://github.com/yourusername/crawl4ai-service.git
+cd crawl4ai-service
 
 # Install dependencies
-npm install
+cd server && npm install
 
-# Start development server
-npm run dev
-
-# Start production server
+# Start the server
 npm start
 ```
 
-### Using Docker
+The server will be available at `http://localhost:3000`.
 
-```bash
-# Build the Docker image
-docker build -t crawl4ai-service .
+## Client Usage
 
-# Run the container
-docker run -p 10000:10000 crawl4ai-service
+The TypeScript client provides a simple way to interact with the API:
+
+```typescript
+import Crawl4AIClient from './crawl4ai-client';
+
+// Create a client instance
+const client = new Crawl4AIClient('http://localhost:3000');
+
+// Get stock data
+client.getStockData('AAPL').then(data => {
+  console.log(data.basicInfo);
+  console.log(data.news);
+});
+
+// Get congressional trading data
+client.getAllPoliticalTrades().then(data => {
+  console.log(`Found ${data.combinedTrades.length} trades`);
+  console.log(`House: ${data.houseTrades.length}, Senate: ${data.senateTrades.length}`);
+});
+
+// Get trades for a specific politician
+client.getPoliticianTrades('Pelosi').then(trades => {
+  console.log(`Found ${trades.length} trades for Pelosi`);
+});
+
+// Get trades for a specific stock
+client.getTickerTrades('MSFT').then(trades => {
+  console.log(`Found ${trades.length} congressional trades for MSFT`);
+});
 ```
+
+## Technical Details
+
+The service uses:
+- **Express.js** - Web server framework
+- **JSDOM** - DOM parsing for web scraping
+- **Node-fetch** - For making HTTP requests
+- **TypeScript** - For the client library with type safety
+
+## Legal Considerations
+
+This service is for educational and research purposes only. It accesses publicly available data but users should ensure compliance with the terms of service of the source websites. Always include appropriate delays and caching to avoid excessive requests to the source websites.
+
+## License
+
+MIT
