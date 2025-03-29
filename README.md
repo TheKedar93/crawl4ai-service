@@ -1,10 +1,11 @@
 # Crawl4AI Service
 
-A Node.js service that provides financial data crawling capabilities for the Stock Advisor AI application.
+A Node.js service that provides financial data crawling capabilities for the Stock Advisor AI application, including congressional stock trading data.
 
 ## Features
 
-- Financial data crawling from Finviz and CapitolTrades
+- Financial data crawling from Finviz
+- Congressional stock trading data from House Stock Watcher and Senate Stock Watcher APIs
 - REST API for easy integration with mobile and web apps
 - Customizable crawling options
 - Mock data generation for development and testing
@@ -14,6 +15,7 @@ A Node.js service that provides financial data crawling capabilities for the Sto
 ```
 ├── server/             # Server-side Node.js code
 │   ├── crawl-server.js # Express server implementation
+│   ├── political-api.js# Congressional trading data API
 │   ├── package.json    # Node.js dependencies
 │   └── .gitignore      # Git ignore file
 ├── Dockerfile          # Docker configuration for deployment
@@ -25,10 +27,25 @@ A Node.js service that provides financial data crawling capabilities for the Sto
 
 ## Server API Endpoints
 
+### Web Crawling Endpoints
 - `POST /api/crawl/finviz` - Crawl Finviz for stock data
-- `POST /api/crawl/capitoltrades` - Crawl CapitolTrades for political trading data
 - `POST /api/crawl` - General crawling with custom seed URLs
 - `GET /api/crawl/status` - Check the status of the crawler
+
+### Political Trading Data Endpoints
+- `GET /api/political/trades` - Get combined House and Senate trades
+- `GET /api/political/house/trades` - Get House representative trades
+- `GET /api/political/senate/trades` - Get Senate trades
+- `GET /api/political/politicians` - Get information about politicians
+
+### Utility Endpoints
+- `GET /health` - Health check endpoint
+
+## Data Sources
+
+- **Finviz**: Financial visualization and stock screening website
+- **[House Stock Watcher API](https://housestockwatcher.com/api)**: Provides data on House representatives' stock trading
+- **[Senate Stock Watcher API](https://senatestockwatcher.com/api)**: Provides data on Senators' stock trading
 
 ## Deployment on Render
 
@@ -45,17 +62,14 @@ A Node.js service that provides financial data crawling capabilities for the Sto
 ```typescript
 import { Crawl4AIClient } from './crawl4ai-client';
 
-// Crawl Finviz for financial data
+// Financial data example
 const finvizResults = await Crawl4AIClient.crawlFinviz();
 
-// Crawl CapitolTrades for political trading data
-const capitolTradesResults = await Crawl4AIClient.crawlCapitolTrades();
-
-// Custom crawl
-const customResults = await Crawl4AIClient.crawl([
-  'https://example.com/finance',
-  'https://example.com/stocks'
-]);
+// Political trading data examples
+const allPoliticalTrades = await Crawl4AIClient.getPoliticalTrades();
+const houseTrades = await Crawl4AIClient.getHouseTrades();
+const senateTrades = await Crawl4AIClient.getSenateTrades();
+const politicians = await Crawl4AIClient.getPoliticians();
 
 // Check crawler status
 const status = await Crawl4AIClient.getStatus();
