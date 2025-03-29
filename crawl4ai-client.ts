@@ -1,207 +1,194 @@
-import { Platform } from 'react-native';
+/**
+ * Crawl4AI Client
+ * A TypeScript client for the Crawl4AI service
+ */
 
-// Define types from the original service
-export interface CrawlResult {
-  url: string;
-  title: string;
-  content: string;
-  links: string[];
-  timestamp: number;
-  metadata?: any;
-}
-
-export interface CrawlOptions {
-  maxDepth: number;
-  maxPages: number;
-  ignoreRobotsTxt: boolean;
-  timeout: number;
-  userAgent: string;
-  sources: string[];
+// Types
+export interface StockData {
+  ticker: string;
+  basicInfo: Record<string, string>;
+  news: {
+    dateTime: string;
+    title: string;
+    url: string;
+  }[];
+  insiderTrading: {
+    owner: string;
+    relationship: string;
+    date: string;
+    transaction: string;
+    cost: string;
+    shares: string;
+    value: string;
+    sharesTotal: string;
+    secForm: string;
+  }[];
+  scrapedAt: string;
 }
 
 export interface PoliticalTrade {
   id: string;
-  representative?: {
-    name: string;
-    party: string;
-    state: string;
-    district?: string;
-  };
-  senator?: {
-    name: string;
-    party: string;
-    state: string;
-  };
+  type: 'house' | 'senate';
+  politician: string;
   transaction_date: string;
-  disclosure_date: string;
   ticker: string;
-  company: string;
-  type: string;
-  amount: string;
-  comment: string;
+  asset_description: string;
+  transaction_type: string;
+  amount?: string;
+  comment?: string;
 }
 
 export interface Politician {
+  id: string;
+  type: 'house' | 'senate';
   name: string;
   party: string;
   state: string;
-  district?: string; // House only
-  trades_count: number;
-  total_value?: number;
+  district?: string;
 }
 
-export const defaultCrawlOptions: CrawlOptions = {
-  maxDepth: 2,
-  maxPages: 10,
-  ignoreRobotsTxt: true,
-  timeout: 10000,
-  userAgent: 'StockAdvisorAI/1.0',
-  sources: ['finviz', 'political']
-};
+export interface PoliticalTradesData {
+  houseTrades: PoliticalTrade[];
+  senateTrades: PoliticalTrade[];
+  combinedTrades: PoliticalTrade[];
+  timestamp: number;
+}
 
-// Define the base URL for the API
-// Replace this with your actual Render service URL after deployment
-const API_BASE_URL = 'https://crawl4ai-service.onrender.com';
+export interface PoliticiansData {
+  representatives: Politician[];
+  senators: Politician[];
+  combinedPoliticians: Politician[];
+  timestamp: number;
+}
 
-// Client implementation of the Crawl4AI service
 export class Crawl4AIClient {
-  // Crawl Finviz for financial data
-  static async crawlFinviz(options: Partial<CrawlOptions> = {}): Promise<CrawlResult[]> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/crawl/finviz`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ options }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to crawl Finviz: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data.results;
-    } catch (error) {
-      console.error('Error in crawlFinviz:', error);
-      throw error;
-    }
+  private baseUrl: string;
+
+  /**
+   * Create a new Crawl4AI client
+   * @param baseUrl The base URL of the Crawl4AI service
+   */
+  constructor(baseUrl: string = 'https://crawl4ai-service.onrender.com') {
+    this.baseUrl = baseUrl;
   }
 
-  // Get all political trades (House and Senate)
-  static async getPoliticalTrades(): Promise<any> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/political/trades`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch political trades: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data.data;
-    } catch (error) {
-      console.error('Error fetching political trades:', error);
-      throw error;
-    }
+  /**
+   * Set a new base URL
+   * @param baseUrl The new base URL
+   */
+  setBaseUrl(baseUrl: string): void {
+    this.baseUrl = baseUrl;
   }
 
-  // Get House representative trades
-  static async getHouseTrades(): Promise<any> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/political/house/trades`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch House trades: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data.data;
-    } catch (error) {
-      console.error('Error fetching House trades:', error);
-      throw error;
-    }
+  /**
+   * Get the current base URL
+   * @returns The current base URL
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
-  // Get Senate trades
-  static async getSenateTrades(): Promise<any> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/political/senate/trades`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Senate trades: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data.data;
-    } catch (error) {
-      console.error('Error fetching Senate trades:', error);
-      throw error;
+  /**
+   * Fetch stock data from Finviz
+   * @param ticker The stock ticker symbol
+   * @returns Promise with stock data
+   */
+  async getStockData(ticker: string): Promise<StockData> {
+    const response = await fetch(`${this.baseUrl}/api/stock/${ticker}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch stock data: ${response.statusText}`);
     }
+    
+    return await response.json();
   }
 
-  // Get politician profiles
-  static async getPoliticians(): Promise<any> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/political/politicians`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch politicians: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data.data;
-    } catch (error) {
-      console.error('Error fetching politicians:', error);
-      throw error;
+  /**
+   * Get all political trades (both House and Senate)
+   * @returns Promise with all political trades
+   */
+  async getAllPoliticalTrades(): Promise<PoliticalTradesData> {
+    const response = await fetch(`${this.baseUrl}/api/political/trades`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch political trades: ${response.statusText}`);
     }
+    
+    return await response.json();
   }
 
-  // Generic crawl method
-  static async crawl(seedUrls: string[], options: Partial<CrawlOptions> = {}): Promise<CrawlResult[]> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/crawl`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ seedUrls, options }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to crawl URLs: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      return data.results;
-    } catch (error) {
-      console.error('Error in crawl:', error);
-      throw error;
+  /**
+   * Get House representative trades
+   * @returns Promise with House trades
+   */
+  async getHouseTrades(): Promise<PoliticalTrade[]> {
+    const response = await fetch(`${this.baseUrl}/api/political/house`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch House trades: ${response.statusText}`);
     }
+    
+    return await response.json();
   }
 
-  // Get crawler status
-  static async getStatus(): Promise<any> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/crawl/status`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to get crawler status: ${response.status} ${response.statusText}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Error getting crawler status:', error);
-      throw error;
+  /**
+   * Get Senate trades
+   * @returns Promise with Senate trades
+   */
+  async getSenateTrades(): Promise<PoliticalTrade[]> {
+    const response = await fetch(`${this.baseUrl}/api/political/senate`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Senate trades: ${response.statusText}`);
     }
+    
+    return await response.json();
+  }
+
+  /**
+   * Get all politicians (both House and Senate)
+   * @returns Promise with all politicians
+   */
+  async getAllPoliticians(): Promise<PoliticiansData> {
+    const response = await fetch(`${this.baseUrl}/api/political/politicians`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch politicians: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  }
+
+  /**
+   * Get trades for a specific politician
+   * @param name The politician's name
+   * @returns Promise with the politician's trades
+   */
+  async getPoliticianTrades(name: string): Promise<PoliticalTrade[]> {
+    const response = await fetch(`${this.baseUrl}/api/political/politician/${encodeURIComponent(name)}/trades`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch trades for politician ${name}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  }
+
+  /**
+   * Get trades for a specific ticker
+   * @param ticker The stock ticker symbol
+   * @returns Promise with trades for the ticker
+   */
+  async getTickerTrades(ticker: string): Promise<PoliticalTrade[]> {
+    const response = await fetch(`${this.baseUrl}/api/political/ticker/${ticker}/trades`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch trades for ticker ${ticker}: ${response.statusText}`);
+    }
+    
+    return await response.json();
   }
 }
 
-// Function to check if we should use the server or local implementation
-export const shouldUseServer = (): boolean => {
-  // On web we use server, on native we can choose
-  if (Platform.OS === 'web') return true;
-  
-  // You can add logic here to determine if you want to use 
-  // the server or local implementation on native platforms
-  return true; // Default to using server for consistency
-};
+// Export default instance
+export default Crawl4AIClient;
