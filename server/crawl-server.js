@@ -3,6 +3,7 @@ const fetch = require('node-fetch');
 const cheerio = require('cheerio');
 const { JSDOM } = require('jsdom');
 const cors = require('cors');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -12,6 +13,9 @@ const politicalScraper = require('./political-scraper');
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory cache to avoid hitting the websites too frequently
 const cache = {
@@ -28,7 +32,7 @@ const CACHE_TIMEOUT = 15 * 60 * 1000;
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('Crawl4AI Service is running');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Fetch stock data from Finviz
@@ -338,6 +342,7 @@ async function fetchFinvizData(ticker) {
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Visit http://localhost:${PORT} to see the animated crawler logo`);
 });
 
 module.exports = app;
