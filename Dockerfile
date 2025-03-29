@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:18.19.1-alpine3.18
 
 WORKDIR /app
 
@@ -15,11 +15,8 @@ RUN mkdir -p ./public
 # Copy static files
 COPY server/public/ ./public/
 
-# Add global undici polyfill (for Node.js <18)
-RUN echo "global.ReadableStream = require('stream/web').ReadableStream;" > ./polyfill.js
-
 # Expose the port
 EXPOSE 3000
 
-# Start the server with polyfill
-CMD ["node", "--require", "./polyfill.js", "crawl-server.js"]
+# Start the server with polyfill preloaded
+CMD ["node", "crawl-server.js"]
