@@ -2,6 +2,8 @@
 
 A web scraping service that collects and serves stock market data and congressional trading information. This service provides a unified API for accessing financial data from Finviz and political trading data from House Stock Watcher and Senate Stock Watcher websites.
 
+![Crawl4AI Spider Logo](server/public/favicon.svg)
+
 ## Features
 
 - **Financial Data**: Scrape stock data from Finviz including basic metrics, news, and insider trading
@@ -9,6 +11,7 @@ A web scraping service that collects and serves stock market data and congressio
 - **Unified API**: Access all data through a clean RESTful API
 - **Caching**: Reduce website load and improve response times with intelligent caching
 - **TypeScript Client**: Strongly-typed client library for easy integration
+- **Animated Spider**: Interactive frontend with animated crawling spider logo
 
 ## Repository Structure
 
@@ -18,7 +21,12 @@ crawl4ai-service/
 │   ├── crawl-server.js   # Express server implementation
 │   ├── political-scraper.js # Scraper for political trading data
 │   ├── package.json      # Server dependencies
-│   └── render.yaml       # Render deployment configuration
+│   ├── render.yaml       # Render deployment configuration
+│   └── public/           # Static files for the frontend
+│       ├── index.html    # Frontend interface
+│       ├── style.css     # Styling with spider animation
+│       ├── script.js     # Interactive elements
+│       └── favicon.svg   # Spider logo
 ├── crawl4ai-client.ts    # TypeScript client library
 ├── Dockerfile            # Docker configuration
 ├── .dockerignore         # Docker build exclusions
@@ -78,7 +86,18 @@ cd server && npm install
 npm start
 ```
 
-The server will be available at `http://localhost:3000`.
+The server will be available at `http://localhost:3000` with the animated spider logo frontend.
+
+## Spider Animation
+
+The service includes an animated frontend featuring:
+
+- **Crawling Spider Logo**: An animated spider that crawls around a web
+- **Interactive Elements**: The spider reacts to user interactions
+- **Data Visualization**: Animated data "dots" represent data being collected
+- **API Endpoint Links**: Easy access to test the API endpoints
+
+Visit the root URL of your deployed service to see the animated frontend in action.
 
 ## Client Usage
 
@@ -120,6 +139,7 @@ The service uses:
 - **JSDOM** - DOM parsing for web scraping
 - **Node-fetch** - For making HTTP requests
 - **TypeScript** - For the client library with type safety
+- **CSS Animation** - For the animated spider logo
 
 ## Legal Considerations
 
