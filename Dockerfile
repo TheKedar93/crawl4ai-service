@@ -1,22 +1,22 @@
-FROM node:18-slim
+FROM node:16-alpine
 
 WORKDIR /app
 
-# Copy package files first for better caching
-COPY server/package*.json ./server/
+# Copy package files and install dependencies
+COPY server/package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN cd server && npm install
+# Copy server files
+COPY server/ ./
 
-# Copy the rest of the application
-COPY . .
+# Ensure public directory exists
+RUN mkdir -p ./public
 
-# Environment variables
-ENV NODE_ENV=production
-ENV PORT=10000
+# Copy static files
+COPY server/public/ ./public/
 
 # Expose the port
-EXPOSE 10000
+EXPOSE 3000
 
 # Start the server
-CMD ["npm", "--prefix", "server", "start"]
+CMD ["npm", "start"]
