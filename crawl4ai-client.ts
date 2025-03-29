@@ -19,13 +19,44 @@ export interface CrawlOptions {
   sources: string[];
 }
 
+export interface PoliticalTrade {
+  id: string;
+  representative?: {
+    name: string;
+    party: string;
+    state: string;
+    district?: string;
+  };
+  senator?: {
+    name: string;
+    party: string;
+    state: string;
+  };
+  transaction_date: string;
+  disclosure_date: string;
+  ticker: string;
+  company: string;
+  type: string;
+  amount: string;
+  comment: string;
+}
+
+export interface Politician {
+  name: string;
+  party: string;
+  state: string;
+  district?: string; // House only
+  trades_count: number;
+  total_value?: number;
+}
+
 export const defaultCrawlOptions: CrawlOptions = {
   maxDepth: 2,
   maxPages: 10,
   ignoreRobotsTxt: true,
   timeout: 10000,
   userAgent: 'StockAdvisorAI/1.0',
-  sources: ['finviz', 'capitoltrades']
+  sources: ['finviz', 'political']
 };
 
 // Define the base URL for the API
@@ -57,25 +88,70 @@ export class Crawl4AIClient {
     }
   }
 
-  // Crawl CapitolTrades for political trading data
-  static async crawlCapitolTrades(options: Partial<CrawlOptions> = {}): Promise<CrawlResult[]> {
+  // Get all political trades (House and Senate)
+  static async getPoliticalTrades(): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/crawl/capitoltrades`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ options }),
-      });
+      const response = await fetch(`${API_BASE_URL}/api/political/trades`);
       
       if (!response.ok) {
-        throw new Error(`Failed to crawl CapitolTrades: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch political trades: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      return data.results;
+      return data.data;
     } catch (error) {
-      console.error('Error in crawlCapitolTrades:', error);
+      console.error('Error fetching political trades:', error);
+      throw error;
+    }
+  }
+
+  // Get House representative trades
+  static async getHouseTrades(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/political/house/trades`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch House trades: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching House trades:', error);
+      throw error;
+    }
+  }
+
+  // Get Senate trades
+  static async getSenateTrades(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/political/senate/trades`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch Senate trades: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching Senate trades:', error);
+      throw error;
+    }
+  }
+
+  // Get politician profiles
+  static async getPoliticians(): Promise<any> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/political/politicians`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch politicians: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching politicians:', error);
       throw error;
     }
   }
