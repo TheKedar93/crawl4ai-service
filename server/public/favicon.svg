@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Web background -->
+  <circle cx="50" cy="50" r="45" fill="none" stroke="#EEEEEE" stroke-width="2" />
+  <circle cx="50" cy="50" r="35" fill="none" stroke="#EEEEEE" stroke-width="1" stroke-dasharray="4 2" />
+  <circle cx="50" cy="50" r="25" fill="none" stroke="#EEEEEE" stroke-width="1" stroke-dasharray="2 2" />
+  
+  <!-- Web lines -->
+  <line x1="5" y1="50" x2="95" y2="50" stroke="#EEEEEE" stroke-width="1" />
+  <line x1="50" y1="5" x2="50" y2="95" stroke="#EEEEEE" stroke-width="1" />
+  <line x1="14.64" y1="14.64" x2="85.36" y2="85.36" stroke="#EEEEEE" stroke-width="1" />
+  <line x1="14.64" y1="85.36" x2="85.36" y2="14.64" stroke="#EEEEEE" stroke-width="1" />
+  
+  <!-- Spider body -->
+  <ellipse cx="50" cy="50" rx="10" ry="15" fill="#333333" />
+  <circle cx="50" cy="40" r="7" fill="#333333" />
+  
+  <!-- Spider legs -->
+  <path d="M 45 45 C 35 35, 25 40, 20 35" fill="none" stroke="#333333" stroke-width="2" />
+  <path d="M 45 50 C 35 50, 25 55, 20 50" fill="none" stroke="#333333" stroke-width="2" />
+  <path d="M 45 55 C 35 65, 25 60, 20 65" fill="none" stroke="#333333" stroke-width="2" />
+  <path d="M 55 45 C 65 35, 75 40, 80 35" fill="none" stroke="#333333" stroke-width="2" />
+  <path d="M 55 50 C 65 50, 75 55, 80 50" fill="none" stroke="#333333" stroke-width="2" />
+  <path d="M 55 55 C 65 65, 75 60, 80 65" fill="none" stroke="#333333" stroke-width="2" />
+  
+  <!-- Spider eyes -->
+  <circle cx="48" cy="38" r="1.5" fill="white" />
+  <circle cx="52" cy="38" r="1.5" fill="white" />
+</svg>
