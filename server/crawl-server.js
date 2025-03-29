@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { JSDOM } = require('jsdom');
 const fetch = require('node-fetch');
+const politicalApi = require('./political-api');
 
 // Create Express app
 const app = express();
@@ -18,7 +19,7 @@ const defaultCrawlOptions = {
   ignoreRobotsTxt: true,
   timeout: 10000,
   userAgent: 'StockAdvisorAI/1.0',
-  sources: ['finviz', 'capitoltrades']
+  sources: ['finviz', 'political']
 };
 
 // API endpoint to crawl Finviz
@@ -33,14 +34,46 @@ app.post('/api/crawl/finviz', async (req, res) => {
   }
 });
 
-// API endpoint to crawl CapitolTrades
-app.post('/api/crawl/capitoltrades', async (req, res) => {
+// API endpoint for political trading data (House and Senate)
+app.get('/api/political/trades', async (req, res) => {
   try {
-    const options = req.body.options || {};
-    const results = await crawlCapitolTrades(options);
-    res.json({ success: true, results });
+    const data = await politicalApi.fetchAllPoliticalTrades();
+    res.json({ success: true, data });
   } catch (error) {
-    console.error('Error crawling CapitolTrades:', error);
+    console.error('Error fetching political trades:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint for House trading data only
+app.get('/api/political/house/trades', async (req, res) => {
+  try {
+    const data = await politicalApi.fetchHouseTrades();
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching House trades:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint for Senate trading data only
+app.get('/api/political/senate/trades', async (req, res) => {
+  try {
+    const data = await politicalApi.fetchSenateTrades();
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching Senate trades:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// API endpoint for all politicians
+app.get('/api/political/politicians', async (req, res) => {
+  try {
+    const data = await politicalApi.fetchAllPoliticians();
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching politicians:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -64,8 +97,17 @@ app.post('/api/crawl', async (req, res) => {
 // API endpoint to get the status of the crawler
 app.get('/api/crawl/status', (req, res) => {
   res.json({
-    status: 'idle', // You'll need to implement status tracking
+    status: 'idle',
     message: 'Crawler is ready'
+  });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: Date.now()
   });
 });
 
@@ -88,29 +130,6 @@ async function crawlFinviz(options = {}) {
   } catch (error) {
     console.error("Error crawling Finviz:", error);
     return generateMockStocks();
-  }
-}
-
-async function crawlCapitolTrades(options = {}) {
-  const seedUrls = [
-    'https://www.capitoltrades.com/trades?per_page=96',
-    'https://www.capitoltrades.com/politicians?per_page=96'
-  ];
-  
-  try {
-    const results = await startCrawl(seedUrls, { 
-      ...options, 
-      sources: ['capitoltrades'] 
-    });
-    
-    if (results.length === 0) {
-      throw new Error("No valid data returned from Capitol Trades");
-    }
-    
-    return results;
-  } catch (error) {
-    console.error("Error crawling Capitol Trades:", error);
-    return generateMockTrades();
   }
 }
 
@@ -139,8 +158,8 @@ async function startCrawl(seedUrls, options = {}) {
         const allowedLinks = result.links.filter(link => {
           return (
             link.includes('finviz.com') || 
-            link.includes('capitoltrades.com/trades') || 
-            link.includes('capitoltrades.com/politicians')
+            link.includes('housestockwatcher.com') ||
+            link.includes('senatestockwatcher.com')
           );
         });
         
@@ -242,8 +261,8 @@ function extractMetadata(doc, url) {
   // Simplified metadata extraction
   if (url.includes('finviz.com')) {
     return { source: 'finviz' };
-  } else if (url.includes('capitoltrades.com')) {
-    return { source: 'capitoltrades' };
+  } else if (url.includes('housestockwatcher.com') || url.includes('senatestockwatcher.com')) {
+    return { source: 'political' };
   }
   
   return null;
@@ -274,26 +293,8 @@ function generateMockStocks() {
   ];
 }
 
-function generateMockTrades() {
-  return [
-    {
-      id: 'mock-1',
-      politician: 'Nancy Pelosi',
-      party: 'D',
-      chamber: 'House',
-      stock: 'AAPL',
-      stockName: 'Apple Inc.',
-      tradeType: 'Buy',
-      date: '2023-06-15',
-      amountRange: '$100,001 - $250,000',
-      link: 'https://www.capitoltrades.com/trades?politician=Nancy%20Pelosi'
-    },
-    // Add more mock trades as needed
-  ];
-}
-
 // Start the server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Crawl4AI server running on port ${PORT}`);
 });
