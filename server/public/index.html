@@ -4,51 +4,270 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crawl4AI Service</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .logo {
+            max-width: 250px;
+            height: auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #c0392b;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .endpoint {
+            background-color: white;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .method {
+            font-weight: bold;
+            border-radius: 3px;
+            padding: 3px 6px;
+            font-size: 0.8rem;
+            margin-right: 5px;
+        }
+        .get {
+            background-color: #2ecc71;
+            color: white;
+        }
+        .post {
+            background-color: #3498db;
+            color: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo-container">
-            <div class="spider">
-                <div class="body"></div>
-                <div class="legs">
-                    <div class="leg leg1"></div>
-                    <div class="leg leg2"></div>
-                    <div class="leg leg3"></div>
-                    <div class="leg leg4"></div>
-                    <div class="leg leg5"></div>
-                    <div class="leg leg6"></div>
-                    <div class="leg leg7"></div>
-                    <div class="leg leg8"></div>
-                </div>
-            </div>
-            <div class="web"></div>
-        </div>
-        <h1>Crawl4AI Service</h1>
-        <p class="subtitle">Web crawler for financial and political trading data</p>
-        
-        <div class="endpoints">
-            <h2>API Endpoints</h2>
-            <div class="endpoint-group">
-                <h3>Stock Data</h3>
-                <a href="/api/stock/AAPL" class="endpoint">GET /api/stock/AAPL</a>
-            </div>
-            
-            <div class="endpoint-group">
-                <h3>Political Trading Data</h3>
-                <a href="/api/political/trades" class="endpoint">GET /api/political/trades</a>
-                <a href="/api/political/house" class="endpoint">GET /api/political/house</a>
-                <a href="/api/political/senate" class="endpoint">GET /api/political/senate</a>
-                <a href="/api/political/politicians" class="endpoint">GET /api/political/politicians</a>
-            </div>
-        </div>
-        
-        <div class="status">
-            <div class="status-circle"></div>
-            <p>Service is running</p>
-        </div>
+    <div class="logo-container">
+        <img src="/logo.gif" alt="Crawl4AI Logo" class="logo" />
     </div>
-
-    <script src="script.js"></script>
+    <h1>Crawl4AI Service</h1>
+    <p>Welcome to the Crawl4AI Service API. This service provides web crawling and data scraping functionality for financial and political trading data.</p>
+    
+    <h2>API Endpoints</h2>
+    
+    <div class="endpoint">
+        <h3><span class="method post">POST</span> /api/crawl-finviz</h3>
+        <p>Crawls Finviz for stock data for a specific ticker.</p>
+        <h4>Request Body:</h4>
+        <pre>{
+  "ticker": "AAPL"  // Stock ticker symbol
+}</pre>
+        <h4>Response:</h4>
+        <pre>{
+  "ticker": "AAPL",
+  "data": {
+    "fullName": "Apple Inc.",
+    "currentPrice": "169.32",
+    "EPS (ttm)": "6.14",
+    "P/E": "27.58",
+    "Market Cap": "2.63T",
+    "Dividend": "0.92 (0.54%)",
+    // ... other stock data
+    "news": [
+      { "title": "News headline 1", "url": "https://example.com/news1" },
+      { "title": "News headline 2", "url": "https://example.com/news2" }
+    ]
+  },
+  "timestamp": "2023-11-15T12:34:56Z"
+}</pre>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method get">GET</span> /api/house-trades</h3>
+        <p>Retrieves the latest stock trades made by House representatives.</p>
+        <h4>Response:</h4>
+        <pre>{
+  "success": true,
+  "data": [
+    {
+      "id": "some-id-1",
+      "type": "house",
+      "politician": "Representative Name",
+      "transaction_date": "11/10/2023",
+      "ticker": "AAPL",
+      "asset_description": "APPLE INC",
+      "transaction_type": "Purchase",
+      "amount": "$1,001 - $15,000",
+      "scraped_at": "2023-11-15T12:34:56Z",
+      "data_source": "capitoltrades"
+    },
+    // ... more trades
+  ],
+  "count": 125,
+  "timestamp": "2023-11-15T12:34:56Z"
+}</pre>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method get">GET</span> /api/senate-trades</h3>
+        <p>Retrieves the latest stock trades made by Senators.</p>
+        <h4>Response:</h4>
+        <pre>{
+  "success": true,
+  "data": [
+    {
+      "id": "some-id-2",
+      "type": "senate",
+      "politician": "Senator Name",
+      "transaction_date": "11/8/2023",
+      "ticker": "MSFT",
+      "asset_description": "MICROSOFT CORP",
+      "transaction_type": "Purchase",
+      "amount": "$15,001 - $50,000",
+      "scraped_at": "2023-11-15T12:34:56Z",
+      "data_source": "capitoltrades"
+    },
+    // ... more trades
+  ],
+  "count": 75,
+  "timestamp": "2023-11-15T12:34:56Z"
+}</pre>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method get">GET</span> /api/congressional-trades</h3>
+        <p>Retrieves stock trades from both House and Senate members.</p>
+        <h4>Response:</h4>
+        <pre>{
+  "success": true,
+  "data": [
+    // Combined House and Senate trades
+  ],
+  "count": 200,
+  "house_count": 125,
+  "senate_count": 75,
+  "timestamp": "2023-11-15T12:34:56Z"
+}</pre>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method get">GET</span> /api/politicians</h3>
+        <p>Retrieves profiles of politicians from House and/or Senate.</p>
+        <h4>Parameters:</h4>
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Description</th>
+                <th>Values</th>
+                <th>Default</th>
+            </tr>
+            <tr>
+                <td>chamber</td>
+                <td>Filter by political chamber</td>
+                <td>house, senate, all</td>
+                <td>all</td>
+            </tr>
+        </table>
+        <h4>Response:</h4>
+        <pre>{
+  "success": true,
+  "data": [
+    {
+      "id": "house-12345",
+      "name": "Representative Name",
+      "state": "CA",
+      "party": "D",
+      "chamber": "house",
+      "district": "12",
+      "data_source": "capitoltrades"
+    },
+    {
+      "id": "senate-67890",
+      "name": "Senator Name",
+      "state": "NY",
+      "party": "R",
+      "chamber": "senate",
+      "data_source": "capitoltrades"
+    },
+    // ... more politicians
+  ],
+  "count": 535,
+  "chamber": "all",
+  "timestamp": "2023-11-15T12:34:56Z"
+}</pre>
+    </div>
+    
+    <div class="endpoint">
+        <h3><span class="method get">GET</span> /api/health</h3>
+        <p>Health check endpoint to verify the service is running.</p>
+        <h4>Response:</h4>
+        <pre>{
+  "status": "ok",
+  "timestamp": "2023-11-15T12:34:56Z",
+  "service": "crawl4ai-service"
+}</pre>
+    </div>
+    
+    <h2>Usage Notes</h2>
+    <ul>
+        <li>All timestamps are in ISO 8601 format (UTC)</li>
+        <li>The service may have usage limits to prevent abuse</li>
+        <li>Stock data is sourced from Finviz and should be considered delayed</li>
+        <li>Political trading data is scraped from various sources and updated periodically</li>
+        <li>Some requests may take time to process due to web scraping operations</li>
+    </ul>
+    
+    <h2>Error Responses</h2>
+    <p>Error responses will include an error message and appropriate HTTP status code:</p>
+    <pre>{
+  "success": false,
+  "error": "Error type",
+  "message": "Detailed error message"
+}</pre>
+    
+    <div class="footer">
+        <p>Crawl4AI Service &copy; 2023 | Powered by real web-scraped data</p>
+    </div>
 </body>
 </html>
