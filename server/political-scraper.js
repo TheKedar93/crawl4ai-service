@@ -4,6 +4,7 @@ require('./fetch-polyfill').ensurePolyfilled();
 const fetch = require('node-fetch');
 const { JSDOM } = require('jsdom');
 const axios = require('axios');
+const { extractTickerWithCompanyMatch } = require('./ticker-mapper');
 
 // Website URLs
 const HOUSE_URL = 'https://housestockwatcher.com';
@@ -240,25 +241,31 @@ function extractTradesFromTable(table, type) {
     
     if (cells.length < 3) continue; // Skip rows with too few cells
     
+    const politician = columnMap.politician !== undefined ? cells[columnMap.politician]?.textContent.trim() : '';
+    const transactionDate = columnMap.date !== undefined ? formatDate(cells[columnMap.date]?.textContent.trim()) : '';
+    const rawTickerText = columnMap.ticker !== undefined ? cells[columnMap.ticker]?.textContent.trim() : '';
+    const assetDescription = columnMap.asset !== undefined ? cells[columnMap.asset]?.textContent.trim() : '';
+    const transactionType = columnMap.type !== undefined ? cells[columnMap.type]?.textContent.trim() : '';
+    const amount = columnMap.amount !== undefined ? cells[columnMap.amount]?.textContent.trim() : '';
+    const comment = columnMap.comment !== undefined ? cells[columnMap.comment]?.textContent.trim() : '';
+    
+    // Extract ticker with the enhanced method that uses company name matching
+    const ticker = extractTickerWithCompanyMatch(rawTickerText, assetDescription);
+    
     const trade = {
       id: `scraped-${type}-${Date.now()}-${i}`,
       type: type,
-      politician: columnMap.politician !== undefined ? cells[columnMap.politician]?.textContent.trim() : '',
-      transaction_date: columnMap.date !== undefined ? formatDate(cells[columnMap.date]?.textContent.trim()) : '',
-      raw_ticker_text: columnMap.ticker !== undefined ? cells[columnMap.ticker]?.textContent.trim() : '',
-      asset_description: columnMap.asset !== undefined ? cells[columnMap.asset]?.textContent.trim() : '',
-      transaction_type: columnMap.type !== undefined ? cells[columnMap.type]?.textContent.trim() : '',
-      amount: columnMap.amount !== undefined ? cells[columnMap.amount]?.textContent.trim() : '',
-      comment: columnMap.comment !== undefined ? cells[columnMap.comment]?.textContent.trim() : '',
+      politician: politician,
+      transaction_date: transactionDate,
+      ticker: ticker,
+      raw_ticker_text: rawTickerText,
+      asset_description: assetDescription,
+      transaction_type: transactionType,
+      amount: amount,
+      comment: comment,
       scraped_at: new Date().toISOString(),
       data_source: `${type === 'house' ? 'housestockwatcher' : 'senatestockwatcher'}`
     };
-    
-    // Extract ticker from raw ticker text or asset description
-    trade.ticker = extractTickerSymbol(trade.raw_ticker_text);
-    if (!trade.ticker && trade.asset_description) {
-      trade.ticker = extractTickerSymbol(trade.asset_description);
-    }
     
     // Only add trades with basic information
     if (trade.politician && trade.transaction_date) {
@@ -279,87 +286,74 @@ function extractTradesFromCards(cards, type) {
   const trades = [];
   
   cards.forEach((card, index) => {
-    const trade = {
-      id: `scraped-${type}-${Date.now()}-${index}`,
-      type: type,
-      politician: '',
-      transaction_date: '',
-      ticker: '',
-      raw_ticker_text: '',
-      asset_description: '',
-      transaction_type: '',
-      amount: '',
-      comment: '',
-      scraped_at: new Date().toISOString(),
-      data_source: `${type === 'house' ? 'housestockwatcher' : 'senatestockwatcher'}`
-    };
-    
-    // Extract politician name
+    // Find various elements in the card
     const politicianEl = card.querySelector('[class*="politician"], [class*="name"], [class*="senator"], [class*="representative"]');
-    if (politicianEl) {
-      trade.politician = politicianEl.textContent.trim();
-    }
-    
-    // Extract date
     const dateEl = card.querySelector('[class*="date"], [class*="transaction-date"]');
-    if (dateEl) {
-      trade.transaction_date = formatDate(dateEl.textContent.trim());
-    }
-    
-    // Extract ticker
     const tickerEl = card.querySelector('[class*="ticker"], [class*="symbol"]');
-    if (tickerEl) {
-      trade.raw_ticker_text = tickerEl.textContent.trim();
-      trade.ticker = extractTickerSymbol(trade.raw_ticker_text);
-    }
-    
-    // Extract asset description
     const assetEl = card.querySelector('[class*="asset"], [class*="description"]');
-    if (assetEl) {
-      trade.asset_description = assetEl.textContent.trim();
-      if (!trade.ticker) {
-        trade.ticker = extractTickerSymbol(trade.asset_description);
-      }
-    }
-    
-    // Extract transaction type
     const typeEl = card.querySelector('[class*="type"], [class*="transaction-type"]');
-    if (typeEl) {
-      trade.transaction_type = typeEl.textContent.trim();
-    }
-    
-    // Extract amount
     const amountEl = card.querySelector('[class*="amount"], [class*="value"]');
-    if (amountEl) {
-      trade.amount = amountEl.textContent.trim();
-    }
-    
-    // Extract comment
     const commentEl = card.querySelector('[class*="comment"], [class*="notes"]');
-    if (commentEl) {
-      trade.comment = commentEl.textContent.trim();
-    }
     
-    // If we couldn't find structured data, try generic text extraction
-    if (!trade.politician || !trade.transaction_date) {
+    // Extract text content from elements
+    const politician = politicianEl ? politicianEl.textContent.trim() : '';
+    const transactionDate = dateEl ? formatDate(dateEl.textContent.trim()) : '';
+    const rawTickerText = tickerEl ? tickerEl.textContent.trim() : '';
+    const assetDescription = assetEl ? assetEl.textContent.trim() : '';
+    const transactionType = typeEl ? typeEl.textContent.trim() : '';
+    const amount = amountEl ? amountEl.textContent.trim() : '';
+    const comment = commentEl ? commentEl.textContent.trim() : '';
+    
+    // If we don't have structured elements, try to extract from full text
+    let fullTextPolitician = politician;
+    let fullTextDate = transactionDate;
+    let fullTextAsset = assetDescription;
+    
+    if (!politician || !transactionDate) {
       const fullText = card.textContent.trim();
       
       // Try to extract politician name
-      if (!trade.politician) {
+      if (!fullTextPolitician) {
         const nameMatch = fullText.match(/(?:Senator|Representative|Politician|Name):?\s*([^,\n]+)/i);
         if (nameMatch && nameMatch[1]) {
-          trade.politician = nameMatch[1].trim();
+          fullTextPolitician = nameMatch[1].trim();
         }
       }
       
       // Try to extract date
-      if (!trade.transaction_date) {
+      if (!fullTextDate) {
         const dateMatch = fullText.match(/(?:Date|Transaction Date):?\s*([^,\n]+)/i);
         if (dateMatch && dateMatch[1]) {
-          trade.transaction_date = formatDate(dateMatch[1].trim());
+          fullTextDate = formatDate(dateMatch[1].trim());
+        }
+      }
+      
+      // Try to extract asset description
+      if (!fullTextAsset) {
+        const assetMatch = fullText.match(/(?:Asset|Description):?\s*([^,\n]+)/i);
+        if (assetMatch && assetMatch[1]) {
+          fullTextAsset = assetMatch[1].trim();
         }
       }
     }
+    
+    // Extract ticker with the enhanced method that uses company name matching
+    const ticker = extractTickerWithCompanyMatch(rawTickerText, assetDescription || fullTextAsset);
+    
+    const trade = {
+      id: `scraped-${type}-${Date.now()}-${index}`,
+      type: type,
+      politician: fullTextPolitician,
+      transaction_date: fullTextDate,
+      ticker: ticker,
+      raw_ticker_text: rawTickerText,
+      asset_description: assetDescription || fullTextAsset,
+      transaction_type: transactionType,
+      amount: amount,
+      comment: comment,
+      scraped_at: new Date().toISOString(),
+      data_source: `${type === 'house' ? 'housestockwatcher' : 'senatestockwatcher'}`
+    };
     
     // Only add trades with basic information
     if (trade.politician && trade.transaction_date) {
@@ -377,7 +371,6 @@ function extractTradesFromCards(cards, type) {
  * @returns {Array} - Extracted trades
  */
 function extractTradesGeneric(doc, type) {
-  // This is a more aggressive approach when nothing else works
   const fullText = doc.body.textContent.trim();
   const potentialTrades = [];
   
@@ -388,74 +381,38 @@ function extractTradesGeneric(doc, type) {
     const text = section.trim();
     if (text.length < 30) return; // Skip short sections
     
+    // Extract various fields using regex
+    const nameMatch = text.match(/(?:Senator|Representative|Politician|Name):?\s*([^,\n]+)/i);
+    const dateMatch = text.match(/(?:Date|Transaction Date):?\s*([^,\n]+)/i);
+    const tickerMatch = text.match(/(?:Ticker|Symbol):?\s*([^,\n]+)/i);
+    const assetMatch = text.match(/(?:Asset|Description):?\s*([^,\n]+)/i);
+    const typeMatch = text.match(/(?:Type|Transaction Type):?\s*([^,\n]+)/i);
+    const amountMatch = text.match(/(?:Amount|Value):?\s*([^,\n]+)/i);
+    
+    const politician = nameMatch && nameMatch[1] ? nameMatch[1].trim() : '';
+    const transactionDate = dateMatch && dateMatch[1] ? formatDate(dateMatch[1].trim()) : '';
+    const rawTickerText = tickerMatch && tickerMatch[1] ? tickerMatch[1].trim() : '';
+    const assetDescription = assetMatch && assetMatch[1] ? assetMatch[1].trim() : '';
+    const transactionType = typeMatch && typeMatch[1] ? typeMatch[1].trim() : '';
+    const amount = amountMatch && amountMatch[1] ? amountMatch[1].trim() : '';
+    
+    // Extract ticker with the enhanced method that uses company name matching
+    const ticker = extractTickerWithCompanyMatch(rawTickerText, assetDescription);
+    
     const trade = {
       id: `scraped-${type}-${Date.now()}-${index}`,
       type: type,
-      politician: '',
-      transaction_date: '',
-      ticker: '',
-      raw_ticker_text: '',
-      asset_description: '',
-      transaction_type: '',
-      amount: '',
+      politician: politician,
+      transaction_date: transactionDate,
+      ticker: ticker,
+      raw_ticker_text: rawTickerText,
+      asset_description: assetDescription,
+      transaction_type: transactionType,
+      amount: amount,
       comment: '',
       scraped_at: new Date().toISOString(),
       data_source: `${type === 'house' ? 'housestockwatcher' : 'senatestockwatcher'}-generic`
     };
-    
-    // Try to extract politician name
-    const nameMatch = text.match(/(?:Senator|Representative|Politician|Name):?\s*([^,\n]+)/i);
-    if (nameMatch && nameMatch[1]) {
-      trade.politician = nameMatch[1].trim();
-    }
-    
-    // Try to extract date
-    const dateMatch = text.match(/(?:Date|Transaction Date):?\s*([^,\n]+)/i);
-    if (dateMatch && dateMatch[1]) {
-      trade.transaction_date = formatDate(dateMatch[1].trim());
-    }
-    
-    // Try to extract ticker
-    const tickerMatch = text.match(/(?:Ticker|Symbol):?\s*([^,\n]+)/i);
-    if (tickerMatch && tickerMatch[1]) {
-      trade.raw_ticker_text = tickerMatch[1].trim();
-      trade.ticker = extractTickerSymbol(trade.raw_ticker_text);
-    }
-    
-    // Try to extract asset description
-    const assetMatch = text.match(/(?:Asset|Description):?\s*([^,\n]+)/i);
-    if (assetMatch && assetMatch[1]) {
-      trade.asset_description = assetMatch[1].trim();
-      if (!trade.ticker) {
-        trade.ticker = extractTickerSymbol(trade.asset_description);
-      }
-    }
-    
-    // Try to extract transaction type
-    const typeMatch = text.match(/(?:Type|Transaction Type):?\s*([^,\n]+)/i);
-    if (typeMatch && typeMatch[1]) {
-      trade.transaction_type = typeMatch[1].trim();
-    }
-    
-    // Try to extract amount
-    const amountMatch = text.match(/(?:Amount|Value):?\s*([^,\n]+)/i);
-    if (amountMatch && amountMatch[1]) {
-      trade.amount = amountMatch[1].trim();
-    }
-    
-    // Look for ticker fallback - any standalone uppercase text that might be a ticker
-    if (!trade.ticker) {
-      const tickerCandidates = text.match(/\b[A-Z]{1,5}\b/g);
-      if (tickerCandidates) {
-        // Use the first candidate that's not a common word
-        for (const candidate of tickerCandidates) {
-          if (!COMMON_WORDS.includes(candidate)) {
-            trade.ticker = candidate;
-            break;
-          }
-        }
-      }
-    }
     
     // Only add trades with basic information
     if (trade.politician && trade.transaction_date) {
@@ -501,14 +458,23 @@ async function scrapeCapitolTrades(type) {
       
       // Transform the data to our standard format
       return trades.map((trade, index) => {
+        // Extract asset description and get ticker using our enhanced method
+        const assetName = trade.asset_name || '';
+        
+        // If ticker is provided directly, use it, otherwise try to extract it
+        let ticker = trade.ticker || '';
+        if (!ticker) {
+          ticker = extractTickerWithCompanyMatch(assetName);
+        }
+        
         return {
           id: trade.id || `capitol-${type}-${Date.now()}-${index}`,
           type: type,
           politician: trade.politician?.name || '',
           transaction_date: formatDate(trade.transaction_date || ''),
-          ticker: trade.ticker || extractTickerSymbol(trade.asset_name || ''),
+          ticker: ticker,
           raw_ticker_text: trade.ticker || '',
-          asset_description: trade.asset_name || '',
+          asset_description: assetName,
           transaction_type: trade.transaction_type || '',
           amount: trade.amount || '',
           comment: '',
@@ -572,43 +538,6 @@ function formatDate(dateStr) {
     return dateStr;
   }
 }
-
-/**
- * Extract ticker symbol from text using various methods
- * @param {string} text - Text containing potential ticker symbol
- * @returns {string} - Extracted ticker or empty string
- */
-function extractTickerSymbol(text) {
-  if (!text) return '';
-  
-  // Method 1: Look for text in parentheses that might be a ticker
-  const parenthesesMatch = text.match(/\(([A-Z]{1,5})\)/);
-  if (parenthesesMatch && parenthesesMatch[1]) {
-    return parenthesesMatch[1];
-  }
-  
-  // Method 2: Look for standalone uppercase text that might be a ticker
-  const standaloneMatch = text.match(/\b[A-Z]{1,5}\b/);
-  if (standaloneMatch && standaloneMatch[0] && !COMMON_WORDS.includes(standaloneMatch[0])) {
-    return standaloneMatch[0];
-  }
-  
-  // Method 3: Look for ticker: PREFIX
-  const tickerPrefixMatch = text.match(/ticker:\s*([A-Z]{1,5})/i);
-  if (tickerPrefixMatch && tickerPrefixMatch[1]) {
-    return tickerPrefixMatch[1].toUpperCase();
-  }
-  
-  // Method 4: Check if the entire text is just a ticker
-  if (/^[A-Z]{1,5}$/.test(text) && !COMMON_WORDS.includes(text)) {
-    return text;
-  }
-  
-  return '';
-}
-
-// Common words that might be incorrectly identified as tickers
-const COMMON_WORDS = ['A', 'I', 'AM', 'PM', 'AN', 'AS', 'AT', 'BE', 'BY', 'GO', 'IF', 'IN', 'IS', 'IT', 'NO', 'OF', 'ON', 'OR', 'TO', 'UP', 'US'];
 
 /**
  * Parse CSV text to JSON
@@ -742,7 +671,7 @@ async function fetchHousePoliticians() {
         
         // Look for state abbreviation
         const stateMatch = text.match(/\b([A-Z]{2})\b/);
-        if (stateMatch && stateMatch[1] && !COMMON_WORDS.includes(stateMatch[1])) {
+        if (stateMatch && stateMatch[1] && !['AM', 'PM', 'US', 'UK'].includes(stateMatch[1])) {
           state = stateMatch[1];
         }
         
@@ -876,7 +805,7 @@ async function fetchSenatePoliticians() {
         
         // Look for state abbreviation
         const stateMatch = text.match(/\b([A-Z]{2})\b/);
-        if (stateMatch && stateMatch[1] && !COMMON_WORDS.includes(stateMatch[1])) {
+        if (stateMatch && stateMatch[1] && !['AM', 'PM', 'US', 'UK'].includes(stateMatch[1])) {
           state = stateMatch[1];
         }
         
