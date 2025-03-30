@@ -1,64 +1,82 @@
 # Crawl4AI Service
 
-A web scraping service that collects and serves stock market data and congressional trading information. This service provides a unified API for accessing financial data from Finviz and political trading data from House Stock Watcher and Senate Stock Watcher websites.
+A web scraping service that collects and serves stock market data and congressional trading information. This service provides a unified API for accessing financial data from Finviz and political trading data from various sources including Capitol Trades, House Stock Watcher, and Senate Stock Watcher websites.
 
-![Crawl4AI Spider Logo](server/public/favicon.svg)
+![Crawl4AI Spider Logo](server/public/logo.gif)
 
 ## Features
 
 - **Financial Data**: Scrape stock data from Finviz including basic metrics, news, and insider trading
-- **Congressional Trading**: Extract trading data from House and Senate stock watcher websites
+- **Congressional Trading**: Extract real trading data from multiple sources with fallback mechanisms
 - **Unified API**: Access all data through a clean RESTful API
-- **Caching**: Reduce website load and improve response times with intelligent caching
+- **Intelligent Caching**: Reduce website load and improve response times
 - **TypeScript Client**: Strongly-typed client library for easy integration
-- **Animated Spider**: Interactive frontend with animated crawling spider logo
+- **Multiple Data Sources**: Prioritizes the most reliable data sources with fallbacks
+- **Enhanced Data Extraction**: Robust scraping techniques to ensure data quality
 
 ## Repository Structure
 
 ```
 crawl4ai-service/
-├── server/               # Backend server code
-│   ├── crawl-server.js   # Express server implementation
-│   ├── political-scraper.js # Scraper for political trading data
-│   ├── package.json      # Server dependencies
-│   ├── render.yaml       # Render deployment configuration
-│   └── public/           # Static files for the frontend
-│       ├── index.html    # Frontend interface
-│       ├── style.css     # Styling with spider animation
-│       ├── script.js     # Interactive elements
-│       └── favicon.svg   # Spider logo
-├── crawl4ai-client.ts    # TypeScript client library
-├── Dockerfile            # Docker configuration
-├── .dockerignore         # Docker build exclusions
-├── render.yaml           # Root deployment configuration
-└── README.md             # This documentation file
+├── server/                # Backend server code
+│   ├── crawl-server.js    # Express server implementation
+│   ├── political-scraper.js # Advanced scraper for political trading data
+│   ├── fetch-polyfill.js  # Ensures fetch API consistency across Node versions
+│   ├── package.json       # Server dependencies
+│   ├── render.yaml        # Render deployment configuration
+│   └── public/            # Static files for the frontend
+│       ├── index.html     # API documentation page
+│       ├── logo.gif       # Animated logo
+│       └── favicon.ico    # Favicon
+├── crawl4ai-client.ts     # TypeScript client library
+├── Dockerfile             # Docker configuration
+├── .dockerignore          # Docker build exclusions
+├── render.yaml            # Root deployment configuration
+└── README.md              # This documentation file
 ```
 
 ## API Endpoints
 
-### Stock Data
-- `GET /api/stock/:ticker` - Get financial data for a specific stock ticker
+### Financial Data
+- `POST /api/crawl-finviz` - Get financial data for a specific stock ticker
 
 ### Political Trading Data
-- `GET /api/political/trades` - Get all congressional trading data
-- `GET /api/political/house` - Get House representatives' trading data
-- `GET /api/political/senate` - Get Senators' trading data
-- `GET /api/political/politicians` - Get profiles of all politicians
-- `GET /api/political/politician/:name/trades` - Get trades for a specific politician
-- `GET /api/political/ticker/:ticker/trades` - Get congressional trades for a specific ticker
+- `GET /api/house-trades` - Get House representatives' trading data
+- `GET /api/senate-trades` - Get Senators' trading data
+- `GET /api/congressional-trades` - Get all congressional trading data (House and Senate combined)
+- `GET /api/politicians` - Get profiles of politicians (supports filtering by chamber)
+
+### Utility Endpoints
+- `GET /api/health` - Health check endpoint
+- `GET /` - API documentation page
 
 ## Data Sources
 
-The service scrapes data from the following sources:
-- **Finviz** (`https://finviz.com`) - For stock data and financial metrics
-- **House Stock Watcher** (`https://housestockwatcher.com`) - For House representatives' trading data
-- **Senate Stock Watcher** (`https://senatestockwatcher.com`) - For Senators' trading data
+The service scrapes data from the following sources, with fallbacks for reliability:
+
+### Primary Sources
+- **Capitol Trades** - Primary source for congressional trading data
+- **Finviz** - For stock data and financial metrics
+
+### Fallback Sources
+- **House Stock Watcher** - Fallback for House representatives' trading data
+- **Senate Stock Watcher** - Fallback for Senators' trading data
+
+## Enhanced Data Extraction
+
+The service implements advanced scraping techniques to ensure high-quality data:
+
+- **Multiple Source Strategy**: Tries multiple sources to get the most reliable data
+- **Flexible Parsing**: Can extract data from various HTML structures
+- **Smart Ticker Extraction**: Uses multiple methods to extract stock tickers
+- **Cache Management**: Intelligent caching to reduce website load and improve response times
+- **Error Handling**: Comprehensive error handling and fallbacks
 
 ## Deployment
 
 ### Deploy on Render
 
-This service is configured for deployment on Render.com.
+This service is configured for deployment on Render.com with Docker.
 
 1. Fork or clone this repository
 2. Create a new Web Service on Render
@@ -86,18 +104,7 @@ cd server && npm install
 npm start
 ```
 
-The server will be available at `http://localhost:3000` with the animated spider logo frontend.
-
-## Spider Animation
-
-The service includes an animated frontend featuring:
-
-- **Crawling Spider Logo**: An animated spider that crawls around a web
-- **Interactive Elements**: The spider reacts to user interactions
-- **Data Visualization**: Animated data "dots" represent data being collected
-- **API Endpoint Links**: Easy access to test the API endpoints
-
-Visit the root URL of your deployed service to see the animated frontend in action.
+The server will be available at `http://localhost:3000`.
 
 ## Client Usage
 
@@ -107,28 +114,37 @@ The TypeScript client provides a simple way to interact with the API:
 import Crawl4AIClient from './crawl4ai-client';
 
 // Create a client instance
-const client = new Crawl4AIClient('http://localhost:3000');
+const client = new Crawl4AIClient();
 
 // Get stock data
-client.getStockData('AAPL').then(data => {
-  console.log(data.basicInfo);
-  console.log(data.news);
+client.getStockData('AAPL').then(stockData => {
+  console.log(stockData.data.fullName);
+  console.log(stockData.data.currentPrice);
+  console.log(stockData.data.news);
 });
 
-// Get congressional trading data
-client.getAllPoliticalTrades().then(data => {
-  console.log(`Found ${data.combinedTrades.length} trades`);
-  console.log(`House: ${data.houseTrades.length}, Senate: ${data.senateTrades.length}`);
+// Get House trades
+client.getHouseTrades().then(response => {
+  console.log(`Found ${response.count} House trades`);
+  response.data.forEach(trade => {
+    console.log(`${trade.politician} traded ${trade.ticker} on ${trade.transaction_date}`);
+  });
 });
 
-// Get trades for a specific politician
-client.getPoliticianTrades('Pelosi').then(trades => {
-  console.log(`Found ${trades.length} trades for Pelosi`);
+// Get Senate trades
+client.getSenateTrades().then(response => {
+  console.log(`Found ${response.count} Senate trades`);
 });
 
-// Get trades for a specific stock
-client.getTickerTrades('MSFT').then(trades => {
-  console.log(`Found ${trades.length} congressional trades for MSFT`);
+// Get all congressional trades
+client.getCongressionalTrades().then(response => {
+  console.log(`Total trades: ${response.count}`);
+  console.log(`House: ${response.house_count}, Senate: ${response.senate_count}`);
+});
+
+// Get politician profiles
+client.getPoliticians('house').then(response => {
+  console.log(`Found ${response.count} House politicians`);
 });
 ```
 
@@ -136,10 +152,20 @@ client.getTickerTrades('MSFT').then(trades => {
 
 The service uses:
 - **Express.js** - Web server framework
-- **JSDOM** - DOM parsing for web scraping
-- **Node-fetch** - For making HTTP requests
+- **Puppeteer** - For browser automation to scrape Finviz
+- **JSDOM** - For parsing HTML from political trading sites
+- **Axios** - For making HTTP requests
+- **Node-fetch** - For fallback fetch API in older Node versions
 - **TypeScript** - For the client library with type safety
-- **CSS Animation** - For the animated spider logo
+
+## Data Quality Focus
+
+This service prioritizes data quality with several strategies:
+1. **Multi-Source Approach**: Pulls data from the most reliable sources first
+2. **Fallback Mechanisms**: If primary sources fail, falls back to alternative sources
+3. **Smart Extraction**: Uses multiple parsing methods to ensure data extraction
+4. **No Mock Data**: Relies on real scraped data rather than mock data
+5. **Caching**: Balances between fresh data and website load management
 
 ## Legal Considerations
 
