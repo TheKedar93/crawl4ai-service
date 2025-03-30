@@ -1,31 +1,28 @@
 /**
  * Crawl4AI Client
- * A TypeScript client for the Crawl4AI service
+ * TypeScript client for interacting with the Crawl4AI service.
  */
 
-// Types
+/**
+ * Stock data interface representing data from Finviz
+ */
 export interface StockData {
   ticker: string;
-  basicInfo: Record<string, string>;
-  news: {
-    dateTime: string;
-    title: string;
-    url: string;
-  }[];
-  insiderTrading: {
-    owner: string;
-    relationship: string;
-    date: string;
-    transaction: string;
-    cost: string;
-    shares: string;
-    value: string;
-    sharesTotal: string;
-    secForm: string;
-  }[];
-  scrapedAt: string;
+  data: {
+    [key: string]: any;
+    fullName?: string;
+    currentPrice?: string;
+    news?: Array<{
+      title: string;
+      url: string;
+    }>;
+  };
+  timestamp: string;
 }
 
+/**
+ * Political trade interface
+ */
 export interface PoliticalTrade {
   id: string;
   type: 'house' | 'senate';
@@ -34,161 +31,185 @@ export interface PoliticalTrade {
   ticker: string;
   asset_description: string;
   transaction_type: string;
-  amount?: string;
+  amount: string;
   comment?: string;
+  scraped_at: string;
+  data_source: string;
 }
 
+/**
+ * Politician profile interface
+ */
 export interface Politician {
   id: string;
-  type: 'house' | 'senate';
   name: string;
-  party: string;
   state: string;
+  party: string;
+  chamber: 'house' | 'senate';
   district?: string;
+  data_source: string;
 }
 
-export interface PoliticalTradesData {
-  houseTrades: PoliticalTrade[];
-  senateTrades: PoliticalTrade[];
-  combinedTrades: PoliticalTrade[];
-  timestamp: number;
+/**
+ * Configuration options for the Crawl4AI client
+ */
+export interface Crawl4AIConfig {
+  /** Base URL for the API */
+  baseUrl?: string;
+  /** Request timeout in milliseconds */
+  timeout?: number;
 }
 
-export interface PoliticiansData {
-  representatives: Politician[];
-  senators: Politician[];
-  combinedPoliticians: Politician[];
-  timestamp: number;
+/**
+ * Response structure for political trades
+ */
+export interface PoliticalTradesResponse {
+  success: boolean;
+  data: PoliticalTrade[];
+  count: number;
+  house_count?: number;
+  senate_count?: number;
+  timestamp: string;
 }
 
+/**
+ * Response structure for politicians
+ */
+export interface PoliticiansResponse {
+  success: boolean;
+  data: Politician[];
+  count: number;
+  chamber: string;
+  timestamp: string;
+}
+
+/**
+ * Crawl4AI Client class
+ */
 export class Crawl4AIClient {
   private baseUrl: string;
+  private timeout: number;
 
   /**
-   * Create a new Crawl4AI client
-   * @param baseUrl The base URL of the Crawl4AI service
+   * Creates an instance of the Crawl4AI client.
+   * @param config - Configuration options
    */
-  constructor(baseUrl: string = 'https://crawl4ai-service.onrender.com') {
-    this.baseUrl = baseUrl;
+  constructor(config: Crawl4AIConfig = {}) {
+    this.baseUrl = config.baseUrl || 'https://crawl4ai-service.onrender.com';
+    this.timeout = config.timeout || 30000;
   }
 
   /**
-   * Set a new base URL
-   * @param baseUrl The new base URL
-   */
-  setBaseUrl(baseUrl: string): void {
-    this.baseUrl = baseUrl;
-  }
-
-  /**
-   * Get the current base URL
-   * @returns The current base URL
-   */
-  getBaseUrl(): string {
-    return this.baseUrl;
-  }
-
-  /**
-   * Fetch stock data from Finviz
-   * @param ticker The stock ticker symbol
+   * Get stock data from Finviz
+   * @param ticker - Stock ticker symbol
    * @returns Promise with stock data
    */
   async getStockData(ticker: string): Promise<StockData> {
-    const response = await fetch(`${this.baseUrl}/api/stock/${ticker}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch stock data: ${response.statusText}`);
+    if (!ticker) {
+      throw new Error('Ticker symbol is required');
     }
-    
+
+    const response = await fetch(`${this.baseUrl}/api/crawl-finviz`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ticker }),
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Failed to fetch stock data for ${ticker}`);
+    }
+
     return await response.json();
   }
 
   /**
-   * Get all political trades (both House and Senate)
-   * @returns Promise with all political trades
+   * Get House stock trades
+   * @returns Promise with House trades data
    */
-  async getAllPoliticalTrades(): Promise<PoliticalTradesData> {
-    const response = await fetch(`${this.baseUrl}/api/political/trades`);
-    
+  async getHouseTrades(): Promise<PoliticalTradesResponse> {
+    const response = await fetch(`${this.baseUrl}/api/house-trades`, {
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch political trades: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch House trades');
     }
-    
+
     return await response.json();
   }
 
   /**
-   * Get House representative trades
-   * @returns Promise with House trades
+   * Get Senate stock trades
+   * @returns Promise with Senate trades data
    */
-  async getHouseTrades(): Promise<PoliticalTrade[]> {
-    const response = await fetch(`${this.baseUrl}/api/political/house`);
-    
+  async getSenateTrades(): Promise<PoliticalTradesResponse> {
+    const response = await fetch(`${this.baseUrl}/api/senate-trades`, {
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch House trades: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch Senate trades');
     }
-    
+
     return await response.json();
   }
 
   /**
-   * Get Senate trades
-   * @returns Promise with Senate trades
+   * Get all congressional trades (House and Senate combined)
+   * @returns Promise with all congressional trades data
    */
-  async getSenateTrades(): Promise<PoliticalTrade[]> {
-    const response = await fetch(`${this.baseUrl}/api/political/senate`);
-    
+  async getCongressionalTrades(): Promise<PoliticalTradesResponse> {
+    const response = await fetch(`${this.baseUrl}/api/congressional-trades`, {
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch Senate trades: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch congressional trades');
     }
-    
+
     return await response.json();
   }
 
   /**
-   * Get all politicians (both House and Senate)
-   * @returns Promise with all politicians
+   * Get politicians by chamber
+   * @param chamber - 'house', 'senate', or 'all'
+   * @returns Promise with politicians data
    */
-  async getAllPoliticians(): Promise<PoliticiansData> {
-    const response = await fetch(`${this.baseUrl}/api/political/politicians`);
-    
+  async getPoliticians(chamber: 'house' | 'senate' | 'all' = 'all'): Promise<PoliticiansResponse> {
+    const response = await fetch(`${this.baseUrl}/api/politicians?chamber=${chamber}`, {
+      signal: AbortSignal.timeout(this.timeout),
+    });
+
     if (!response.ok) {
-      throw new Error(`Failed to fetch politicians: ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch politicians');
     }
-    
+
     return await response.json();
   }
 
   /**
-   * Get trades for a specific politician
-   * @param name The politician's name
-   * @returns Promise with the politician's trades
+   * Health check for the service
+   * @returns Promise with health status
    */
-  async getPoliticianTrades(name: string): Promise<PoliticalTrade[]> {
-    const response = await fetch(`${this.baseUrl}/api/political/politician/${encodeURIComponent(name)}/trades`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch trades for politician ${name}: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  }
+  async healthCheck(): Promise<{ status: string; timestamp: string; service: string }> {
+    const response = await fetch(`${this.baseUrl}/api/health`, {
+      signal: AbortSignal.timeout(5000), // Shorter timeout for health check
+    });
 
-  /**
-   * Get trades for a specific ticker
-   * @param ticker The stock ticker symbol
-   * @returns Promise with trades for the ticker
-   */
-  async getTickerTrades(ticker: string): Promise<PoliticalTrade[]> {
-    const response = await fetch(`${this.baseUrl}/api/political/ticker/${ticker}/trades`);
-    
     if (!response.ok) {
-      throw new Error(`Failed to fetch trades for ticker ${ticker}: ${response.statusText}`);
+      throw new Error('Service health check failed');
     }
-    
+
     return await response.json();
   }
 }
 
-// Export default instance
 export default Crawl4AIClient;
