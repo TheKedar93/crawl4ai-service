@@ -1,351 +1,289 @@
-// Load polyfill before any other imports
-require('./fetch-polyfill').ensurePolyfilled();
-
 const express = require('express');
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
-const { JSDOM } = require('jsdom');
 const cors = require('cors');
 const path = require('path');
+const puppeteer = require('puppeteer');
+const { scrapeHouseTrades, scrapeSenateTrades, getPoliticians } = require('./political-scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Import the political data scraper
-const politicalScraper = require('./political-scraper');
-
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from public directory
+// Serve static files (logo, favicon, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory cache to avoid hitting the websites too frequently
-const cache = {
-  finvizData: null,
-  finvizTimestamp: 0,
-  politicalTrades: null,
-  politicalTradesTimestamp: 0,
-  politicians: null,
-  politiciansTimestamp: 0
-};
+let browser;
 
-// Cache timeout (15 minutes)
-const CACHE_TIMEOUT = 15 * 60 * 1000;
-
-// Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Fetch stock data from Finviz
-app.get('/api/stock/:ticker', async (req, res) => {
+// Browser initialization function
+async function initBrowser() {
+  if (browser) return browser;
+  
   try {
-    const ticker = req.params.ticker.toUpperCase();
-    const data = await fetchFinvizData(ticker);
-    res.json(data);
-  } catch (error) {
-    console.error('Error fetching stock data:', error);
-    res.status(500).json({ error: 'Failed to fetch stock data' });
-  }
-});
-
-// Get political trades from House and Senate
-app.get('/api/political/trades', async (req, res) => {
-  try {
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    if (cache.politicalTrades && now - cache.politicalTradesTimestamp < CACHE_TIMEOUT) {
-      return res.json(cache.politicalTrades);
+    console.log('Initializing headless browser...');
+    const args = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu'
+    ];
+    
+    // Check if running in a Docker container
+    if (process.env.PUPPETEER_DOCKER_MODE === 'true') {
+      console.log('Running in Docker mode with additional args');
+      args.push('--single-process');
     }
     
-    // Fetch new data
-    const trades = await politicalScraper.scrapeAllPoliticalTrades();
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: args
+    });
     
-    // Update cache
-    cache.politicalTrades = trades;
-    cache.politicalTradesTimestamp = now;
+    console.log('Browser initialized successfully');
     
-    res.json(trades);
+    // Handle browser close
+    browser.on('disconnected', () => {
+      console.log('Browser disconnected, will reinitialize on next request');
+      browser = null;
+    });
+    
+    return browser;
   } catch (error) {
-    console.error('Error fetching political trades:', error);
+    console.error('Failed to initialize browser:', error);
+    throw error;
+  }
+}
+
+// API route to get stock data from Finviz
+app.post('/api/crawl-finviz', async (req, res) => {
+  const { ticker } = req.body;
+  
+  if (!ticker) {
+    return res.status(400).json({ error: 'Ticker symbol is required' });
+  }
+  
+  console.log(`Received request to crawl Finviz for ticker: ${ticker}`);
+  
+  try {
+    const browser = await initBrowser();
+    const page = await browser.newPage();
+    
+    // Set viewport and user agent
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    
+    // Navigate to Finviz
+    const url = `https://finviz.com/quote.ashx?t=${ticker}`;
+    console.log(`Navigating to: ${url}`);
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Extract stock data
+    const stockData = await page.evaluate(() => {
+      const data = {};
+      
+      // Extract snapshot table data
+      const snapshotTables = document.querySelectorAll('.snapshot-table2');
+      if (snapshotTables.length > 0) {
+        snapshotTables.forEach(table => {
+          const rows = table.querySelectorAll('tr');
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            for (let i = 0; i < cells.length; i += 2) {
+              if (i + 1 < cells.length) {
+                const key = cells[i].textContent.trim();
+                const value = cells[i + 1].textContent.trim();
+                data[key] = value;
+              }
+            }
+          });
+        });
+      }
+      
+      // Get the stock name and price
+      const quote = document.querySelector('.quote-header');
+      if (quote) {
+        data.fullName = quote.textContent.trim();
+      }
+      
+      // Get price data
+      const priceElement = document.querySelector('.quote-price');
+      if (priceElement) {
+        data.currentPrice = priceElement.textContent.trim();
+      }
+      
+      // Get news headlines
+      const news = [];
+      const newsElements = document.querySelectorAll('.news-link-container');
+      newsElements.forEach(el => {
+        const link = el.querySelector('a');
+        if (link) {
+          news.push({
+            title: link.textContent.trim(),
+            url: link.href
+          });
+        }
+      });
+      data.news = news;
+      
+      return data;
+    });
+    
+    console.log(`Successfully crawled data for ${ticker}`);
+    await page.close();
+    
+    res.json({
+      ticker,
+      data: stockData,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`Error crawling Finviz for ${ticker}:`, error);
     res.status(500).json({ 
-      error: 'Failed to fetch political trades',
-      message: error.message
+      error: 'Failed to crawl stock data',
+      message: error.message,
+      ticker
     });
   }
 });
 
-// Get House trades
-app.get('/api/political/house', async (req, res) => {
+// House trades endpoint
+app.get('/api/house-trades', async (req, res) => {
   try {
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    if (cache.politicalTrades && now - cache.politicalTradesTimestamp < CACHE_TIMEOUT) {
-      return res.json(cache.politicalTrades.houseTrades);
-    }
+    console.log('Received request for House trades');
+    const trades = await scrapeHouseTrades();
     
-    // Fetch new data
-    const houseTrades = await politicalScraper.scrapeHouseTrades();
-    
-    res.json(houseTrades);
+    res.json({
+      success: true,
+      data: trades,
+      count: trades.length,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error fetching House trades:', error);
-    res.status(500).json({ 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch House trades',
       message: error.message
     });
   }
 });
 
-// Get Senate trades
-app.get('/api/political/senate', async (req, res) => {
+// Senate trades endpoint
+app.get('/api/senate-trades', async (req, res) => {
   try {
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    if (cache.politicalTrades && now - cache.politicalTradesTimestamp < CACHE_TIMEOUT) {
-      return res.json(cache.politicalTrades.senateTrades);
-    }
+    console.log('Received request for Senate trades');
+    const trades = await scrapeSenateTrades();
     
-    // Fetch new data
-    const senateTrades = await politicalScraper.scrapeSenateTrades();
-    
-    res.json(senateTrades);
+    res.json({
+      success: true,
+      data: trades,
+      count: trades.length,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error fetching Senate trades:', error);
-    res.status(500).json({ 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch Senate trades',
       message: error.message
     });
   }
 });
 
-// Get all politicians (House representatives and Senators)
-app.get('/api/political/politicians', async (req, res) => {
+// All congressional trades endpoint
+app.get('/api/congressional-trades', async (req, res) => {
   try {
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    if (cache.politicians && now - cache.politiciansTimestamp < CACHE_TIMEOUT) {
-      return res.json(cache.politicians);
-    }
+    console.log('Received request for all congressional trades');
+    const [houseTrades, senateTrades] = await Promise.all([
+      scrapeHouseTrades(),
+      scrapeSenateTrades()
+    ]);
     
-    // Fetch new data
-    const politicians = await politicalScraper.scrapeAllPoliticians();
+    const allTrades = [...houseTrades, ...senateTrades];
     
-    // Update cache
-    cache.politicians = politicians;
-    cache.politiciansTimestamp = now;
+    res.json({
+      success: true,
+      data: allTrades,
+      count: allTrades.length,
+      house_count: houseTrades.length,
+      senate_count: senateTrades.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching congressional trades:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch congressional trades',
+      message: error.message
+    });
+  }
+});
+
+// Politicians endpoint
+app.get('/api/politicians', async (req, res) => {
+  try {
+    const { chamber = 'all' } = req.query;
+    console.log(`Received request for politicians, chamber: ${chamber}`);
     
-    res.json(politicians);
+    const politicians = await getPoliticians(chamber);
+    
+    res.json({
+      success: true,
+      data: politicians,
+      count: politicians.length,
+      chamber: chamber,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error fetching politicians:', error);
-    res.status(500).json({ 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch politicians',
       message: error.message
     });
   }
 });
 
-// Get trades by specific politician
-app.get('/api/political/politician/:name/trades', async (req, res) => {
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'crawl4ai-service'
+  });
+});
+
+// Root route that returns API info
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Start the server
+app.listen(PORT, async () => {
+  console.log(`Crawl4AI service running on port ${PORT}`);
+  
   try {
-    const politicianName = req.params.name;
-    
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    let allTrades = [];
-    
-    if (cache.politicalTrades && now - cache.politicalTradesTimestamp < CACHE_TIMEOUT) {
-      allTrades = cache.politicalTrades.combinedTrades;
-    } else {
-      // Fetch new data
-      const trades = await politicalScraper.scrapeAllPoliticalTrades();
-      allTrades = trades.combinedTrades;
-      
-      // Update cache
-      cache.politicalTrades = trades;
-      cache.politicalTradesTimestamp = now;
-    }
-    
-    // Filter trades by politician name
-    const politicianTrades = allTrades.filter(trade => {
-      return trade.politician.toLowerCase().includes(politicianName.toLowerCase());
-    });
-    
-    res.json(politicianTrades);
+    // Pre-initialize the browser
+    await initBrowser();
+    console.log('Browser pre-initialized');
   } catch (error) {
-    console.error(`Error fetching trades for politician ${req.params.name}:`, error);
-    res.status(500).json({ 
-      error: `Failed to fetch trades for politician ${req.params.name}`,
-      message: error.message
-    });
+    console.error('Failed to pre-initialize browser:', error);
   }
 });
 
-// Get trades by ticker
-app.get('/api/political/ticker/:ticker/trades', async (req, res) => {
-  try {
-    const ticker = req.params.ticker.toUpperCase();
-    
-    // Check if we have cached data that's still fresh
-    const now = Date.now();
-    let allTrades = [];
-    
-    if (cache.politicalTrades && now - cache.politicalTradesTimestamp < CACHE_TIMEOUT) {
-      allTrades = cache.politicalTrades.combinedTrades;
-    } else {
-      // Fetch new data
-      const trades = await politicalScraper.scrapeAllPoliticalTrades();
-      allTrades = trades.combinedTrades;
-      
-      // Update cache
-      cache.politicalTrades = trades;
-      cache.politicalTradesTimestamp = now;
-    }
-    
-    // Filter trades by ticker
-    const tickerTrades = allTrades.filter(trade => {
-      return trade.ticker === ticker;
-    });
-    
-    res.json(tickerTrades);
-  } catch (error) {
-    console.error(`Error fetching trades for ticker ${req.params.ticker}:`, error);
-    res.status(500).json({ 
-      error: `Failed to fetch trades for ticker ${req.params.ticker}`,
-      message: error.message
-    });
+// Handle cleanup on shutdown
+process.on('SIGINT', async () => {
+  console.log('Shutting down server...');
+  
+  if (browser) {
+    console.log('Closing browser...');
+    await browser.close();
   }
+  
+  console.log('Clean shutdown complete');
+  process.exit(0);
 });
 
-// Fetch data from Finviz
-async function fetchFinvizData(ticker) {
-  try {
-    // Check cache first
-    const now = Date.now();
-    if (cache.finvizData && cache.finvizData[ticker] && now - cache.finvizTimestamp < CACHE_TIMEOUT) {
-      return cache.finvizData[ticker];
-    }
-
-    const url = `https://finviz.com/quote.ashx?t=${ticker}`;
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
-    }
-
-    const html = await response.text();
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-
-    // Extract basic info
-    const basicInfo = {};
-
-    // Get tables with class "snapshot-table2"
-    const tables = document.querySelectorAll('.snapshot-table2');
-    
-    for (const table of tables) {
-      const rows = table.querySelectorAll('tr');
-      
-      for (const row of rows) {
-        const cells = row.querySelectorAll('td');
-        
-        for (let i = 0; i < cells.length; i += 2) {
-          if (i + 1 < cells.length) {
-            const key = cells[i].textContent.trim();
-            const value = cells[i + 1].textContent.trim();
-            basicInfo[key] = value;
-          }
-        }
-      }
-    }
-
-    // Extract news
-    const news = [];
-    const newsTable = document.querySelector('.news-table');
-    
-    if (newsTable) {
-      const newsItems = newsTable.querySelectorAll('tr');
-      
-      for (const item of newsItems) {
-        const dateTd = item.querySelector('td:first-child');
-        const linkTd = item.querySelector('td:last-child');
-        
-        if (dateTd && linkTd) {
-          const dateTime = dateTd.textContent.trim();
-          const linkElement = linkTd.querySelector('a');
-          
-          if (linkElement) {
-            const title = linkElement.textContent.trim();
-            const url = linkElement.getAttribute('href');
-            
-            news.push({
-              dateTime,
-              title,
-              url
-            });
-          }
-        }
-      }
-    }
-
-    // Extract insider trading if available
-    const insiderTrading = [];
-    const insiderTable = document.querySelector('#insider-table');
-    
-    if (insiderTable) {
-      const insiderRows = insiderTable.querySelectorAll('tbody tr');
-      
-      for (const row of insiderRows) {
-        const cells = row.querySelectorAll('td');
-        
-        if (cells.length >= 6) {
-          insiderTrading.push({
-            owner: cells[0].textContent.trim(),
-            relationship: cells[1].textContent.trim(),
-            date: cells[2].textContent.trim(),
-            transaction: cells[3].textContent.trim(),
-            cost: cells[4].textContent.trim(),
-            shares: cells[5].textContent.trim(),
-            value: cells[6]?.textContent.trim() || '',
-            sharesTotal: cells[7]?.textContent.trim() || '',
-            secForm: cells[8]?.textContent.trim() || ''
-          });
-        }
-      }
-    }
-
-    // Compile result
-    const result = {
-      ticker,
-      basicInfo,
-      news,
-      insiderTrading,
-      scrapedAt: new Date().toISOString()
-    };
-
-    // Update cache
-    if (!cache.finvizData) {
-      cache.finvizData = {};
-    }
-    cache.finvizData[ticker] = result;
-    cache.finvizTimestamp = now;
-
-    return result;
-  } catch (error) {
-    console.error(`Error scraping Finviz for ${ticker}:`, error);
-    throw error;
-  }
-}
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Visit http://localhost:${PORT} to see the animated crawler logo`);
-});
-
-module.exports = app;
+module.exports = app; // Export for testing
